@@ -119,8 +119,6 @@ function revokeUserSessions(userId, exceptTokenHash = null) {
 function createSession(user, deviceId) {
   const token = crypto.randomBytes(48).toString('base64url');
   const tokenHash = hashToken(token);
-  // Exactly one active session per customer. Revoke first, then reload the
-  // session store so a stale in-memory object cannot restore old sessions.
   revokeUserSessions(user.id);
   const sessions = pruneSessions();
   sessions[tokenHash] = {
@@ -136,12 +134,10 @@ function createSession(user, deviceId) {
 }
 function getBearerToken(req) {
   const header = String(req.headers.authorization || '');
-  const match = header.match(/^Bearer\\s+(.+)$/i);
+  const match = header.match(/^Bearer\s+(.+)$/i);
   return match ? match[1].trim() : '';
 }
 function getSession(req) {
-  // Prefer an Authorization bearer token so a separately hosted frontend
-  // does not depend on cross-site cookie behavior. Cookie auth remains supported.
   const token = getBearerToken(req) || parseCookies(req).cash_auth;
   if (!token) return null;
   const tokenHash = hashToken(token);
@@ -151,12 +147,10 @@ function getSession(req) {
   const user = findUserById(session.userId);
   if (!user) return null;
   if (hasUserExpired(user) || user.is_active === false) return null;
-  // Every login gets one active session for the account. If another device
-  // logs in, its new session replaces this token and this device becomes
-  // invalid immediately on its next authenticated request.
   if (user.role !== 'admin' && user.active_session_id !== tokenHash) return null;
   return { token, tokenHash, session, user };
 }
+
 async function ensureAdmin() {
   const users = readUsers();
   const existing = users.find(u => String(u.username || '').toLowerCase() === ADMIN_USERNAME.toLowerCase());
@@ -213,11 +207,53 @@ async function ensureDefaultUser() {
   console.log(`Default customer user created: ${targetUsername} (30 days duration)`);
 }
 
+async function ensureMultipleUsers() {
+  const users = readUsers();
+  const newUsersData = [
+    { username: 'tiktok1', pass: 'tiktok@123' },
+    { username: 'tiktok2', pass: 'tiktok@098' },
+    { username: 'tiktok3', pass: 'tiktok@321' },
+    { username: 'tiktok4', pass: 'tiktok@890' },
+    { username: 'tiktok5', pass: 'tiktok@567' }
+  ];
+
+  let changed = false;
+
+  for (const item of newUsersData) {
+    const existing = users.find(u => String(u.username || '').toLowerCase() === item.username.toLowerCase());
+    if (!existing) {
+      users.push({
+        id: makeId(),
+        username: item.username,
+        password_hash: await bcrypt.hash(item.pass, 12),
+        role: 'customer',
+        is_active: true,
+        expires_at: null,
+        duration_minutes: 43200, // 30 days duration
+        created_at: new Date().toISOString(),
+        last_login: null,
+        active_session_id: null
+      });
+      changed = true;
+      console.log(`Default user created: ${item.username} (30 days duration)`);
+    } else {
+      if (Number(existing.duration_minutes || 0) < 43200) {
+        existing.duration_minutes = 43200;
+        changed = true;
+      }
+    }
+  }
+
+  if (changed) {
+    writeUsers(users);
+  }
+}
+
 app.use(cors({
   origin: function(origin, callback) {
     if (!origin) return callback(null, true);
     if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) return callback(null, true);
-    if (/\.(vercel\.app|onrender\.com)$/.test(new URL(origin).hostname) || /^(localhost|127\.0\.0\.1)$/.test(new URL(origin).hostname)) return callback(null, true);
+    if (/\.(vercel\.app|onrender\.com)$/.test(new URL(origin).hostname) \vert{}\vert{} /^(localhost\vert{}127\.0\.0\.1)$/.test(new URL(origin).hostname)) return callback(null, true);
     return callback(null, true);
   },
   credentials: true
@@ -278,18 +314,14 @@ app.post('/api/auth/login', async (req, res) => {
     stored.last_login = new Date().toISOString();
     if (stored.role !== 'admin') {
       stored.active_session_id = tokenHash;
-      // Expiry begins at first successful login, not when the admin creates the account.
       if (!stored.expires_at) {
-        const minutes = Math.max(1, Number(stored.duration_minutes || 30));
+        const minutes = Math.max(1, Number(stored.duration_minutes || 43200));
         stored.expires_at = new Date(Date.now() + minutes * 60 * 1000).toISOString();
       }
     }
     writeUsers(users);
     setAuthCookie(res, token);
     res.set('Cache-Control', 'no-store');
-    // Return the token as well as setting the cookie. The browser client stores
-    // this token locally and sends it as Authorization, which is reliable when
-    // the UI and API are on different HTTPS origins.
     return res.json({ success: true, message: 'Login successful', accessToken: token, user: publicUser(stored) });
   } catch (err) {
     console.error('Login error:', err);
@@ -299,9 +331,6 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.post('/api/auth/logout', (req, res) => {
   try {
-    // Accept both the HttpOnly cookie and the bearer token used by the
-    // frontend. This makes logout work consistently on separate devices and
-    // separate frontend/API deployments.
     const token = getBearerToken(req) || parseCookies(req).cash_auth;
     if (token) {
       const tokenHash = hashToken(token);
@@ -326,10 +355,6 @@ app.get('/api/auth/status', (req, res) => {
   const auth = getSession(req);
   if (!auth) {
     clearAuthCookie(res);
-
-    // A previously valid customer token can become invalid because another
-    // device logged in. Return a specific reason so the old device can show
-    // a clear message instead of opening the mode-selection page.
     if (suppliedToken) {
       const tokenHash = hashToken(suppliedToken);
       const sessions = pruneSessions();
@@ -357,7 +382,7 @@ app.post('/api/users', requireAdmin, async (req, res) => {
   try {
     const username = String(req.body?.username || '').trim();
     const password = String(req.body?.password || '');
-    const duration = Number(req.body?.duration || 30);
+    const duration = Number(req.body?.duration || 43200);
     if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
     if (username.length < 2 || username.length > 64) return res.status(400).json({ error: 'Username must be 2-64 characters.' });
     if (password.length < 1) return res.status(400).json({ error: 'Password is required.' });
@@ -378,7 +403,7 @@ app.patch('/api/users/:id/extend', requireAdmin, (req, res) => {
   if (!Number.isFinite(days) || days <= 0 || days > 3650) return res.status(400).json({ error: 'Invalid number of days' });
   const users = readUsers(); const user = users.find(u => u.id === req.params.id && u.role !== 'admin');
   if (!user) return res.status(404).json({ error: 'User not found' });
-  if (!user.expires_at) user.duration_minutes = Number(user.duration_minutes || 30) + days * 24 * 60;
+  if (!user.expires_at) user.duration_minutes = Number(user.duration_minutes || 43200) + days * 24 * 60;
   else user.expires_at = new Date(Math.max(Date.now(), new Date(user.expires_at).getTime()) + days * 24 * 60 * 60 * 1000).toISOString();
   user.is_active = true; writeUsers(users);
   res.json({ success: true, newExpiry: user.expires_at || null });
@@ -413,10 +438,8 @@ app.delete('/api/users/:id', requireAdmin, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// Remaining application routes
+// Remaining application routes (TikTok, CashApp, Static Files)
 // ---------------------------------------------------------------------------
-// ============ TikTok Profile Lookup ============
-
 const profileCache = new Map();
 const PROFILE_CACHE_TTL = 10 * 60 * 1000;
 
@@ -956,6 +979,7 @@ module.exports = app;
 if (require.main === module) {
   ensureAdmin()
     .then(() => ensureDefaultUser())
+    .then(() => ensureMultipleUsers())
     .then(() => {
       app.listen(PORT, () => {
         console.log(`🚀 Cash Clone server running on http://localhost:${PORT}`);
