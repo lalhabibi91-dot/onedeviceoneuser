@@ -197,7 +197,7 @@ async function ensureDefaultUser() {
     role: 'customer',
     is_active: true,
     expires_at: null,
-    duration_minutes: 43200, // 30 days
+    duration_minutes: 43200,
     created_at: new Date().toISOString(),
     last_login: null,
     active_session_id: null
@@ -229,7 +229,7 @@ async function ensureMultipleUsers() {
         role: 'customer',
         is_active: true,
         expires_at: null,
-        duration_minutes: 43200, // 30 days duration
+        duration_minutes: 43200,
         created_at: new Date().toISOString(),
         last_login: null,
         active_session_id: null
@@ -253,7 +253,7 @@ app.use(cors({
   origin: function(origin, callback) {
     if (!origin) return callback(null, true);
     if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) return callback(null, true);
-    if (/\.(vercel\.app|onrender\.com)$/.test(new URL(origin).hostname) \vert{}\vert{} /^(localhost\vert{}127\.0\.0\.1)$/.test(new URL(origin).hostname)) return callback(null, true);
+    if (/\.(vercel\.app|onrender\.com)$/.test(new URL(origin).hostname) || /^(localhost|127\.0\.0\.1)$/.test(new URL(origin).hostname)) return callback(null, true);
     return callback(null, true);
   },
   credentials: true
