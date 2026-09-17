@@ -1,0 +1,26 @@
+[
+  {
+    "id": "3f11edfe-ab87-458e-9f9d-982506f8be23",
+    "username": "uk0wme",
+    "password_hash": "$2a$12$ShVdwTHp4SGhtTDX4ykviebHW4mw3A/dtyKaP7pkiWne57AO87pe6",
+    "role": "admin",
+    "is_active": true,
+    "expires_at": null,
+    "duration_minutes": 0,
+    "created_at": "2026-09-11T16:26:59.013Z",
+    "last_login": "2026-09-11T16:27:18.734Z",
+    "active_session_id": null
+  },
+  {
+    "id": "b034fdf0-de69-4a14-a3c0-f6b329a8705f",
+    "username": "aa",
+    "password_hash": "$2a$12$utZwleAvGUWpn4MYFVTpf.KjBuxdWkoNPFOOaENFTC/xpeF1T2pA6",
+    "role": "customer",
+    "is_active": true,
+    "expires_at": "2026-09-12T16:27:44.057Z",
+    "duration_minutes": 1440,
+    "created_at": "2026-09-11T16:27:26.937Z",
+    "last_login": "2026-09-11T16:28:20.646Z",
+    "active_session_id": "f1b4b7cf2e26e35ce93301bd953764689437779953e29afe38748197e21843db"
+  }
+]

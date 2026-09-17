@@ -1,0 +1,23 @@
+{
+  "name": "cash-clone.vercel.app",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node -r dotenv/config server.js",
+    "start": "node server.js",
+    "server": "node server.js",
+    "frontend": "npx lite-server --port 5173 --baseDir ./"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Cash Mode / LIVE Rewards with 100% file-based authentication (no database)",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.2",
+    "sharp": "^0.34.5"
+  },
+  "type": "commonjs"
+}
