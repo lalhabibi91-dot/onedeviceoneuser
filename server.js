@@ -193,7 +193,7 @@ async function ensureDefaultUser() {
   users.push({
     id: makeId(),
     username: targetUsername,
-    password_hash: await bcrypt.hash('Ankit', 12),
+    password_hash: await bcrypt.hash('AnkMus', 12),
     role: 'customer',
     is_active: true,
     expires_at: null,
